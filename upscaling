@@ -1,1 +1,473 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Billede Opskalering med Før/Efter Slider</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/upscaler@latest/dist/browser/umd/upscaler.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@upscalerjs/esrgan-slim@latest/dist/umd/2x.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@upscalerjs/esrgan-slim@latest/dist/umd/4x.min.js"></script>
 
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --success-color: #10b981;
+            --success-hover: #059669;
+            --bg-color: #f9fafb;
+            --card-bg: #ffffff;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 20px 20px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #111827;
+        }
+
+        header p {
+            color: #6b7280;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .container {
+            flex: 1;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #64748b;
+        }
+
+        .drop-zone.dragover {
+            border-color: var(--primary-color);
+            background-color: #f5f3ff;
+            color: var(--primary-color);
+        }
+
+        .browse-btn {
+            color: var(--primary-color);
+            font-weight: 600;
+            text-decoration: underline;
+        }
+
+        /* Controls */
+        .controls {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background-color: #fff;
+            font-size: 1rem;
+        }
+
+        button {
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+            font-size: 1rem;
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .primary-btn {
+            background-color: var(--primary-color);
+            color: white;
+            min-width: 200px;
+        }
+
+        .primary-btn:hover:not(:disabled) { 
+            background-color: var(--primary-hover); 
+        }
+
+        .success-btn {
+            background-color: var(--success-color);
+            color: white;
+            padding: 14px 28px;
+            font-size: 1.1rem;
+        }
+
+        .success-btn:hover { background-color: var(--success-hover); }
+
+        /* Preview Sektion & Slider */
+        .preview-section {
+            margin-top: 30px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .comparison-slider {
+            position: relative;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #eee;
+            user-select: none; 
+        }
+
+        .before-image, .after-image {
+            display: block;
+            width: 100%;
+            height: auto;
+            pointer-events: none; 
+        }
+
+        .after-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            clip-path: inset(0 50% 0 0); 
+        }
+
+        .slider-handle {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 2px;
+            height: 100%;
+            background: white;
+            cursor: ew-resize;
+            z-index: 10;
+            transform: translateX(-50%);
+        }
+
+        .slider-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .slider-labels {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 15px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .label {
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .download-container {
+            text-align: center;
+            margin-top: 30px;
+            margin-bottom: 40px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #9ca3af;
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--card-bg);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>AI Billede Opskalering</h1>
+        <p>Brug avanceret AI til at genskabe detaljer og gøre dit billede skarpere. 100% gratis og lokalt i din browser.</p>
+    </header>
+
+    <main class="container">
+        <div id="drop-zone" class="drop-zone">
+            <p>Træk dit billede hertil, eller <span class="browse-btn">klik for at vælge</span></p>
+            <input type="file" id="file-input" accept="image/*" style="display: none;">
+        </div>
+
+        <div id="controls" class="controls" style="display: none;">
+            <div class="control-group">
+                <label for="scale-factor">Vælg AI-opskalering:</label>
+                <select id="scale-factor">
+                    <option value="2">2x Skarpere (Hurtigst)</option>
+                    <option value="4">4x Skarpere (Tager længere tid)</option>
+                </select>
+            </div>
+            <button id="process-btn" class="primary-btn">Start AI-opskalering</button>
+        </div>
+
+        <div id="preview-section" class="preview-section" style="display: none;">
+            <div class="preview-header">
+                <span id="original-info">Original: -</span>
+                <span id="scaled-info">Opskaleret: -</span>
+            </div>
+
+            <div class="comparison-slider" id="slider">
+                <div class="slider-labels">
+                    <span class="label">Original (Sløret)</span>
+                    <span class="label">AI Opskaleret (Skarpt)</span>
+                </div>
+                
+                <img id="original-preview" class="before-image" alt="Original">
+                <img id="scaled-preview" class="after-image" alt="Opskaleret">
+                
+                <div class="slider-handle" id="handle">
+                    <div class="slider-button">↔</div>
+                </div>
+            </div>
+
+            <div class="download-container">
+                <button id="download-btn" class="success-btn">Download AI-opskaleret billede</button>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>Internt værktøj · Bygget med TensorFlow.js · Behandles 100% lokalt uden server</p>
+    </footer>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const controls = document.getElementById('controls');
+        const processBtn = document.getElementById('process-btn');
+        const previewSection = document.getElementById('preview-section');
+        
+        const originalPreview = document.getElementById('original-preview');
+        const scaledPreview = document.getElementById('scaled-preview');
+        const downloadBtn = document.getElementById('download-btn');
+        const scaleFactorSelect = document.getElementById('scale-factor');
+
+        const originalInfo = document.getElementById('original-info');
+        const scaledInfo = document.getElementById('scaled-info');
+
+        // Slider variabler
+        const slider = document.getElementById('slider');
+        const handle = document.getElementById('handle');
+        let isSliding = false;
+
+        let originalImage = null;
+        let originalFileName = "";
+
+        // Hent de valgte AI-modeller fra script tags
+        const aiModels = {
+            '2': ESRGANSlim2x,
+            '4': ESRGANSlim4x
+        };
+
+        // ----- FIL HÅNDTERING -----
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Vælg venligst en gyldig billedfil.');
+                return;
+            }
+
+            originalFileName = file.name;
+            const reader = new FileReader();
+            
+            reader.onload = function(event) {
+                originalImage = new Image();
+                originalImage.onload = function() {
+                    originalInfo.textContent = `Original: ${originalImage.width} × ${originalImage.height} px`;
+                    controls.style.display = 'flex';
+                    previewSection.style.display = 'none';
+                    originalPreview.src = event.target.result;
+                };
+                originalImage.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ----- ÆGTE AI OPSKALERING VIA UPSCALER.JS -----
+        processBtn.addEventListener('click', async () => {
+            if (!originalImage) return;
+
+            const scaleFactor = scaleFactorSelect.value;
+            const selectedModel = aiModels[scaleFactor];
+
+            // Lås knappen og informer brugeren (AI tager lidt tid)
+            processBtn.disabled = true;
+            processBtn.style.backgroundColor = '#9ca3af'; // Gør knappen grå
+            processBtn.textContent = "Klargør AI-model... (0%)";
+
+            try {
+                // Sæt Upscaler op med den valgte model (2x eller 4x)
+                const upscaler = new Upscaler({
+                    model: selectedModel
+                });
+
+                // Kør AI-processen. 
+                // "patchSize" sikrer at billedet klippes i små stykker undervejs,
+                // så computerens browser ikke løber tør for hukommelse og crasher.
+                const scaledDataUrl = await upscaler.upscale(originalImage, {
+                    patchSize: 64, 
+                    padding: 2,
+                    progress: (amount) => {
+                        const procent = Math.round(amount * 100);
+                        processBtn.textContent = `Arbejder: ${procent}% færdig...`;
+                    }
+                });
+
+                // Succes! Sæt det flotte nye billede ind
+                scaledPreview.src = scaledDataUrl;
+                
+                // Opdater info teksten
+                const newWidth = originalImage.width * parseInt(scaleFactor);
+                const newHeight = originalImage.height * parseInt(scaleFactor);
+                scaledInfo.textContent = `AI Opskaleret: ${newWidth} × ${newHeight} px`;
+
+                // Vis slider-sektionen og sæt knappen i midten
+                previewSection.style.display = 'block';
+                updateSliderPosition(slider.offsetWidth / 2);
+                
+                // Gør klart til download uden vandmærke
+                downloadBtn.onclick = function() {
+                    const link = document.createElement('a');
+                    const nameWithoutExt = originalFileName.substring(0, originalFileName.lastIndexOf('.')) || originalFileName;
+                    link.download = `${nameWithoutExt}_AI_x${scaleFactor}.png`;
+                    link.href = scaledDataUrl;
+                    link.click();
+                };
+                
+                previewSection.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("AI Error:", error);
+                alert("Der opstod en fejl under AI-beregningen. Billedet er muligvis for stort til at din computers RAM kan håndtere det. Prøv at genindlæse siden.");
+            } finally {
+                // Nulstil knappen så brugeren kan prøve igen
+                processBtn.disabled = false;
+                processBtn.style.backgroundColor = ''; 
+                processBtn.textContent = "Start AI-opskalering";
+            }
+        });
+
+        // ----- SLIDER LOGIK -----
+        function updateSliderPosition(x) {
+            const rect = slider.getBoundingClientRect();
+            let posX = Math.max(0, Math.min(x, rect.width));
+            let percentage = (posX / rect.width) * 100;
+            
+            handle.style.left = `${percentage}%`;
+            scaledPreview.style.clipPath = `inset(0 ${100 - percentage}% 0 0)`;
+        }
+
+        // Mus events
+        handle.addEventListener('mousedown', (e) => {
+            isSliding = true;
+            e.preventDefault(); 
+        });
+        
+        window.addEventListener('mouseup', () => { isSliding = false; });
+        
+        window.addEventListener('mousemove', (e) => {
+            if (!isSliding) return;
+            const rect = slider.getBoundingClientRect();
+            updateSliderPosition(e.clientX - rect.left);
+        });
+
+        // Touch events (mobiler/tablets)
+        handle.addEventListener('touchstart', (e) => { isSliding = true; });
+        window.addEventListener('touchend', () => { isSliding = false; });
+        window.addEventListener('touchmove', (e) => {
+            if (!isSliding) return;
+            const rect = slider.getBoundingClientRect();
+            updateSliderPosition(e.touches[0].clientX - rect.left);
+        });
+    </script>
+</body>
+</html>
